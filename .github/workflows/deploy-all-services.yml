@@ -182,9 +182,10 @@ jobs:
           esac
           
           # Invoke function
+          echo "$PAYLOAD" > payload.json
           aws lambda invoke \
             --function-name $FUNCTION_NAME \
-            --payload "$PAYLOAD" \
+            --payload file://payload.json \
             --output json \
             response.json
           
