@@ -11,15 +11,20 @@ import logging
 from typing import Dict, Any, List
 from datetime import datetime
 
-# Inline error handler (simplified for containerized deployment)
-def create_error_handler(service_name):
-    class SimplifiedErrorHandler:
-        def handle_error(self, error, message_body, status_code=None):
-            return {
-                'action': 'continue',
-                'error_info': {'error_type': 'client_error' if status_code == 400 else 'server_error'}
-            }
-    return SimplifiedErrorHandler()
+# Import proper error handler
+try:
+    from error_handler import create_error_handler
+except ImportError as e:
+    # Fallback - create no-op implementation
+    print(f"Warning: Could not import error handler: {e}")
+    def create_error_handler(service_name):
+        class NoOpErrorHandler:
+            def handle_error(self, error, message_body, status_code=None):
+                return {
+                    'action': 'continue',
+                    'error_info': {'error_type': 'client_error' if status_code == 400 else 'server_error'}
+                }
+        return NoOpErrorHandler()
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
