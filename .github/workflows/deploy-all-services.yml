@@ -143,7 +143,7 @@ jobs:
       - name: 🚀 Update Lambda Function
         env:
           ECR_REPOSITORY: utility-customer-${{ matrix.service }}
-          IMAGE_TAG: main-${{ github.sha }}
+          IMAGE_TAG: latest
           FUNCTION_NAME: utility-customer-system-dev-${{ matrix.service }}
         run: |
           echo "🔄 Updating Lambda function: $FUNCTION_NAME"
