@@ -1,0 +1,23 @@
+# OpenTelemetry Core Dependencies
+# Simplified version for AWS Lambda deployment
+
+# Core OpenTelemetry (optional - can use simplified logging approach)
+# opentelemetry-api==1.21.0
+# opentelemetry-sdk==1.21.0
+
+# AWS-specific (optional)
+# opentelemetry-propagator-aws-xray==1.0.1
+# opentelemetry-instrumentation-aws-lambda==0.42b0
+# opentelemetry-instrumentation-boto3sqs==0.42b0
+# opentelemetry-instrumentation-botocore==0.42b0
+
+# CloudWatch integration (optional)
+# opentelemetry-exporter-cloudwatch==1.0.0
+
+# Standard dependencies (required)
+boto3>=1.26.0
+botocore>=1.29.0
+
+# Note: The observability implementation uses structured logging
+# which works without OpenTelemetry dependencies for basic functionality
+# Full OpenTelemetry can be added later for advanced tracing

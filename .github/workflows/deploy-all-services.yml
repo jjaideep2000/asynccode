@@ -1,0 +1,221 @@
+name: 🚀 Deploy Containerized Lambda Services
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'services/**'
+      - 'shared/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'services/**'
+      - 'shared/**'
+
+env:
+  AWS_REGION: us-east-2
+  ECR_REGISTRY: 088153174619.dkr.ecr.us-east-2.amazonaws.com
+
+jobs:
+  # 🧪 Test Stage
+  test:
+    name: 🧪 Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: 📦 Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest boto3 moto requests
+          
+          # Install service-specific dependencies
+          for service in services/*/; do
+            if [ -f "$service/requirements.txt" ]; then
+              pip install -r "$service/requirements.txt"
+            fi
+          done
+      
+      - name: 🧪 Run Unit Tests
+        run: |
+          if [ -d "tests" ]; then
+            pytest tests/ -v --tb=short
+          else
+            echo "No tests directory found, skipping unit tests"
+          fi
+      
+      - name: 🔍 Validate Service Structure
+        run: |
+          chmod +x scripts/validate-setup.sh
+          ./scripts/validate-setup.sh
+
+  # 🏗️ Build Stage
+  build:
+    name: 🏗️ Build Container Images
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    
+    strategy:
+      matrix:
+        service: [bank-account-setup, payment-processing, subscription-manager]
+    
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: 🔐 Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      
+      - name: 📋 Extract Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.ECR_REGISTRY }}/utility-customer-${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: 🏗️ Build and Push Container Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/${{ matrix.service }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+
+  # 🚀 Deploy Stage
+  deploy:
+    name: 🚀 Deploy to AWS Lambda
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    strategy:
+      matrix:
+        service: [bank-account-setup, payment-processing, subscription-manager]
+        
+    environment:
+      name: production
+      url: https://console.aws.amazon.com/lambda/home?region=us-east-2#/functions/utility-customer-system-dev-${{ matrix.service }}
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: 🚀 Update Lambda Function
+        env:
+          ECR_REPOSITORY: utility-customer-${{ matrix.service }}
+          IMAGE_TAG: main-${{ github.sha }}
+          FUNCTION_NAME: utility-customer-system-dev-${{ matrix.service }}
+        run: |
+          echo "🔄 Updating Lambda function: $FUNCTION_NAME"
+          echo "📦 Using image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          
+          # Update function code
+          aws lambda update-function-code \
+            --function-name $FUNCTION_NAME \
+            --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            --output table
+          
+          # Wait for update to complete
+          echo "⏳ Waiting for function update to complete..."
+          aws lambda wait function-updated \
+            --function-name $FUNCTION_NAME
+          
+          echo "✅ Function $FUNCTION_NAME updated successfully!"
+      
+      - name: 🧪 Post-Deploy Smoke Test
+        env:
+          FUNCTION_NAME: utility-customer-system-dev-${{ matrix.service }}
+        run: |
+          echo "🧪 Running smoke test for $FUNCTION_NAME"
+          
+          # Create test payload based on service
+          case "${{ matrix.service }}" in
+            "bank-account-setup")
+              PAYLOAD='{"customer_id": "ci-test", "routing_number": "123456789", "account_number": "987654321"}'
+              ;;
+            "payment-processing")
+              PAYLOAD='{"customer_id": "ci-test", "amount": 10.00, "payment_method": "bank_transfer"}'
+              ;;
+            "subscription-manager")
+              PAYLOAD='{"action": "status"}'
+              ;;
+          esac
+          
+          # Invoke function
+          aws lambda invoke \
+            --function-name $FUNCTION_NAME \
+            --payload "$PAYLOAD" \
+            --output json \
+            response.json
+          
+          # Check response
+          if grep -q '"statusCode": 200' response.json; then
+            echo "✅ Smoke test passed for $FUNCTION_NAME"
+          else
+            echo "❌ Smoke test failed for $FUNCTION_NAME"
+            cat response.json
+            exit 1
+          fi
+
+  # 📊 Notify Stage
+  notify:
+    name: 📊 Deployment Notification
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    if: always() && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: 📊 Deployment Summary
+        run: |
+          echo "🎉 Deployment Summary"
+          echo "===================="
+          echo "✅ Repository: ${{ github.repository }}"
+          echo "✅ Branch: ${{ github.ref_name }}"
+          echo "✅ Commit: ${{ github.sha }}"
+          echo "✅ Services Deployed: bank-account-setup, payment-processing, subscription-manager"
+          echo "✅ Environment: Production"
+          echo "✅ Region: ${{ env.AWS_REGION }}"
+          
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "🎉 All services deployed successfully!"
+          else
+            echo "❌ Deployment failed. Check logs for details."
+          fi

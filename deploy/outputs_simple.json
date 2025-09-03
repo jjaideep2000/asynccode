@@ -1,0 +1,10 @@
+{
+  "transaction_processing_topic_arn": "arn:aws:sns:us-east-2:088153174619:utility-customer-system-dev-transaction-processing.fifo",
+  "subscription_control_topic_arn": "arn:aws:sns:us-east-2:088153174619:utility-customer-system-dev-subscription-control",
+  "bank_account_setup_queue_url": "https://sqs.us-east-2.amazonaws.com/088153174619/utility-customer-system-dev-bank-account-setup.fifo",
+  "payment_processing_queue_url": "https://sqs.us-east-2.amazonaws.com/088153174619/utility-customer-system-dev-payment-processing.fifo",
+  "bank_account_lambda_name": "utility-customer-system-dev-bank-account-setup",
+  "payment_lambda_name": "utility-customer-system-dev-payment-processing",
+  "region": "us-east-2",
+  "environment": "dev"
+}

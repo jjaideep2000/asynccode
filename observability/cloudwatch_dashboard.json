@@ -1,0 +1,82 @@
+{
+    "widgets": [
+        {
+            "type": "log",
+            "x": 0,
+            "y": 0,
+            "width": 24,
+            "height": 6,
+            "properties": {
+                "query": "SOURCE '/aws/lambda/utility-customer-system-dev-bank-account-setup'\n| fields @timestamp, @message\n| filter @message like /CUSTOMER_EVENT/\n| sort @timestamp desc\n| limit 100",
+                "region": "us-east-2",
+                "title": "Customer Events - Bank Account Setup",
+                "view": "table"
+            }
+        },
+        {
+            "type": "log",
+            "x": 0,
+            "y": 6,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "query": "SOURCE '/aws/lambda/utility-customer-system-dev-bank-account-setup'\n| fields @timestamp, @message\n| filter @message like /CUSTOMER_ERROR/\n| sort @timestamp desc\n| limit 50",
+                "region": "us-east-2",
+                "title": "Customer Errors",
+                "view": "table"
+            }
+        },
+        {
+            "type": "log",
+            "x": 12,
+            "y": 6,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "query": "SOURCE '/aws/lambda/utility-customer-system-dev-bank-account-setup'\n| fields @timestamp, @message\n| filter @message like /CUSTOMER_METRIC/\n| sort @timestamp desc\n| limit 50",
+                "region": "us-east-2",
+                "title": "Performance Metrics",
+                "view": "table"
+            }
+        },
+        {
+            "type": "log",
+            "x": 0,
+            "y": 12,
+            "width": 24,
+            "height": 6,
+            "properties": {
+                "query": "SOURCE '/aws/lambda/utility-customer-system-dev-bank-account-setup'\n| fields @timestamp, customer_id, event_type, status, trace_id\n| filter @message like /CUSTOMER_EVENT/\n| parse @message /CUSTOMER_EVENT: (?<event_json>.*)/\n| parse event_json /\"customer_id\":\\s*\"(?<customer_id>[^\"]*)\"/\n| parse event_json /\"event_type\":\\s*\"(?<event_type>[^\"]*)\"/\n| parse event_json /\"status\":\\s*\"(?<status>[^\"]*)\"/\n| parse event_json /\"trace_id\":\\s*\"(?<trace_id>[^\"]*)\"/\n| sort @timestamp desc\n| limit 100",
+                "region": "us-east-2",
+                "title": "Customer Journey Tracking",
+                "view": "table"
+            }
+        },
+        {
+            "type": "log",
+            "x": 0,
+            "y": 18,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "query": "SOURCE '/aws/lambda/utility-customer-system-dev-bank-account-setup'\n| fields @timestamp, duration_ms\n| filter @message like /CUSTOMER_METRIC/\n| parse @message /CUSTOMER_METRIC: (?<metric_json>.*)/\n| parse metric_json /\"duration_ms\":\\s*(?<duration_ms>[0-9.]+)/\n| stats avg(duration_ms), max(duration_ms), min(duration_ms) by bin(5m)",
+                "region": "us-east-2",
+                "title": "Processing Duration Trends",
+                "view": "table"
+            }
+        },
+        {
+            "type": "log",
+            "x": 12,
+            "y": 18,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "query": "SOURCE '/aws/lambda/utility-customer-system-dev-bank-account-setup'\n| fields @timestamp, error_type\n| filter @message like /CUSTOMER_ERROR/\n| parse @message /CUSTOMER_ERROR: (?<error_json>.*)/\n| parse error_json /\"error_type\":\\s*\"(?<error_type>[^\"]*)\"/\n| stats count() by error_type\n| sort count desc",
+                "region": "us-east-2",
+                "title": "Error Types Distribution",
+                "view": "table"
+            }
+        }
+    ]
+}

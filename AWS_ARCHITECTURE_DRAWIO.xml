@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2024-01-01T00:00:00.000Z" agent="5.0" etag="xxx" version="22.1.16" type="device">
+  <diagram name="AWS-Serverless-Architecture" id="aws-serverless">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Title -->
+        <mxCell id="title" value="AWS Serverless Payment Processing Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="300" y="20" width="569" height="30" as="geometry" />
+        </mxCell>
+        
+        <!-- VPC Container -->
+        <mxCell id="vpc" value="VPC - Payment Processing Environment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F4FD;strokeColor=#1E88E5;strokeWidth=2;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="50" y="80" width="1070" height="700" as="geometry" />
+        </mxCell>
+        
+        <!-- Lambda Functions Layer -->
+        <mxCell id="lambda-layer" value="Lambda Functions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#FF9900;strokeWidth=2;fontSize=12;fontStyle=1;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="80" y="120" width="1010" height="150" as="geometry" />
+        </mxCell>
+        
+        <!-- Lambda 1: Bank Account -->
+        <mxCell id="lambda1" value="bank-account-lambda&#xa;Runtime: Python 3.9&#xa;Memory: 512MB&#xa;Timeout: 30s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9900;strokeColor=#E65100;fontColor=white;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="150" width="140" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Lambda 2: Payment -->
+        <mxCell id="lambda2" value="payment-lambda&#xa;Runtime: Python 3.9&#xa;Memory: 512MB&#xa;Timeout: 30s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9900;strokeColor=#E65100;fontColor=white;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="150" width="140" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Lambda 3: Error Handler -->
+        <mxCell id="lambda3" value="error-handler-lambda&#xa;Runtime: Python 3.9&#xa;Memory: 256MB&#xa;Timeout: 15s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9900;strokeColor=#E65100;fontColor=white;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="480" y="150" width="140" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Lambda 4: Subscription Control -->
+        <mxCell id="lambda4" value="subscription-control&#xa;Runtime: Python 3.9&#xa;Memory: 256MB&#xa;Timeout: 15s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9900;strokeColor=#E65100;fontColor=white;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="660" y="150" width="140" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Lambda 5: UUID Discovery -->
+        <mxCell id="lambda5" value="uuid-discovery&#xa;Runtime: Python 3.9&#xa;Memory: 256MB&#xa;Timeout: 15s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9900;strokeColor=#E65100;fontColor=white;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="840" y="150" width="140" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- SNS Layer -->
+        <mxCell id="sns-layer" value="Amazon SNS Topics" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#9C27B0;strokeWidth=2;fontSize=12;fontStyle=1;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="80" y="300" width="1010" height="120" as="geometry" />
+        </mxCell>
+        
+        <!-- SNS Topic 1: Success -->
+        <mxCell id="sns1" value="payment-success.fifo&#xa;Type: FIFO&#xa;ContentBasedDeduplication: true" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9C27B0;strokeColor=#6A1B9A;fontColor=white;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="330" width="180" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- SNS Topic 2: Error -->
+        <mxCell id="sns2" value="payment-error&#xa;Type: Standard&#xa;Retry Policy: Exponential" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9C27B0;strokeColor=#6A1B9A;fontColor=white;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="340" y="330" width="180" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- SNS Topic 3: Control -->
+        <mxCell id="sns3" value="subscription-control&#xa;Type: Standard&#xa;Filter Policies: Enabled" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9C27B0;strokeColor=#6A1B9A;fontColor=white;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="330" width="180" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- SNS Topic 4: Discovery -->
+        <mxCell id="sns4" value="uuid-discovery&#xa;Type: Standard&#xa;Message Attributes: Enabled" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9C27B0;strokeColor=#6A1B9A;fontColor=white;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="780" y="330" width="180" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- SQS Layer -->
+        <mxCell id="sqs-layer" value="Amazon SQS Queues" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E8;strokeColor=#4CAF50;strokeWidth=2;fontSize=12;fontStyle=1;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="80" y="450" width="1010" height="120" as="geometry" />
+        </mxCell>
+        
+        <!-- SQS Queue 1: Success -->
+        <mxCell id="sqs1" value="payment-success-queue.fifo&#xa;Type: FIFO&#xa;VisibilityTimeout: 30s&#xa;MessageRetention: 14 days" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4CAF50;strokeColor=#2E7D32;fontColor=white;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="480" width="160" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- SQS Queue 2: Error -->
+        <mxCell id="sqs2" value="payment-error-queue&#xa;Type: Standard&#xa;VisibilityTimeout: 60s&#xa;DLQ: Enabled" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4CAF50;strokeColor=#2E7D32;fontColor=white;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="480" width="160" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- SQS Queue 3: Control -->
+        <mxCell id="sqs3" value="subscription-control-queue&#xa;Type: Standard&#xa;VisibilityTimeout: 30s&#xa;Batch Processing: 10" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4CAF50;strokeColor=#2E7D32;fontColor=white;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="480" y="480" width="160" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- SQS Queue 4: Discovery -->
+        <mxCell id="sqs4" value="uuid-discovery-queue&#xa;Type: Standard&#xa;VisibilityTimeout: 30s&#xa;MaxReceiveCount: 3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4CAF50;strokeColor=#2E7D32;fontColor=white;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="660" y="480" width="160" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- SQS DLQ -->
+        <mxCell id="sqs-dlq" value="error-dlq&#xa;Dead Letter Queue&#xa;MaxReceiveCount: 3&#xa;Retention: 14 days" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F44336;strokeColor=#C62828;fontColor=white;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="860" y="480" width="160" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- CloudWatch Layer -->
+        <mxCell id="cloudwatch-layer" value="Amazon CloudWatch" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8E1;strokeColor=#FFC107;strokeWidth=2;fontSize=12;fontStyle=1;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="80" y="600" width="500" height="120" as="geometry" />
+        </mxCell>
+        
+        <!-- CloudWatch Logs -->
+        <mxCell id="cw-logs" value="CloudWatch Logs&#xa;Log Groups:&#xa;• /aws/lambda/bank-account&#xa;• /aws/lambda/payment&#xa;• /aws/lambda/error-handler" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFC107;strokeColor=#F57F17;fontColor=black;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="630" width="180" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- CloudWatch Metrics -->
+        <mxCell id="cw-metrics" value="CloudWatch Metrics&#xa;Custom Metrics:&#xa;• PaymentSuccess&#xa;• PaymentErrors&#xa;• QueueDepth" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFC107;strokeColor=#F57F17;fontColor=black;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="340" y="630" width="180" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- IAM Layer -->
+        <mxCell id="iam-layer" value="AWS IAM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#E91E63;strokeWidth=2;fontSize=12;fontStyle=1;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="620" y="600" width="470" height="120" as="geometry" />
+        </mxCell>
+        
+        <!-- IAM Role -->
+        <mxCell id="iam-role" value="lambda-execution-role&#xa;Policies:&#xa;• AWSLambdaBasicExecutionRole&#xa;• SNS:Publish&#xa;• SQS:SendMessage, ReceiveMessage" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E91E63;strokeColor=#AD1457;fontColor=white;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="660" y="630" width="200" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- IAM Policy -->
+        <mxCell id="iam-policy" value="custom-policy&#xa;Resources:&#xa;• SNS Topics: payment-*&#xa;• SQS Queues: payment-*&#xa;• CloudWatch: Logs, Metrics" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E91E63;strokeColor=#AD1457;fontColor=white;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="880" y="630" width="180" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrows: Lambda to SNS -->
+        <mxCell id="arrow1" value="" style="endArrow=classic;html=1;rounded=0;strokeColor=#FF9900;strokeWidth=2;" edge="1" parent="1" source="lambda1" target="sns1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="190" y="240" as="sourcePoint" />
+            <mxPoint x="240" y="190" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="arrow2" value="" style="endArrow=classic;html=1;rounded=0;strokeColor=#FF9900;strokeWidth=2;" edge="1" parent="1" source="lambda2" target="sns1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="370" y="240" as="sourcePoint" />
+            <mxPoint x="420" y="190" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="arrow3" value="" style="endArrow=classic;html=1;rounded=0;strokeColor=#FF9900;strokeWidth=2;" edge="1" parent="1" source="lambda2" target="sns2">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="370" y="240" as="sourcePoint" />
+            <mxPoint x="420" y="190" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Arrows: SNS to SQS -->
+        <mxCell id="arrow4" value="" style="endArrow=classic;html=1;rounded=0;strokeColor=#9C27B0;strokeWidth=2;" edge="1" parent="1" source="sns1" target="sqs1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="210" y="400" as="sourcePoint" />
+            <mxPoint x="260" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="arrow5" value="" style="endArrow=classic;html=1;rounded=0;strokeColor=#9C27B0;strokeWidth=2;" edge="1" parent="1" source="sns2" target="sqs2">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="430" y="400" as="sourcePoint" />
+            <mxPoint x="480" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="arrow6" value="" style="endArrow=classic;html=1;rounded=0;strokeColor=#9C27B0;strokeWidth=2;" edge="1" parent="1" source="sns3" target="sqs3">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="650" y="400" as="sourcePoint" />
+            <mxPoint x="700" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="arrow7" value="" style="endArrow=classic;html=1;rounded=0;strokeColor=#9C27B0;strokeWidth=2;" edge="1" parent="1" source="sns4" target="sqs4">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="870" y="400" as="sourcePoint" />
+            <mxPoint x="920" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Error Flow to DLQ -->
+        <mxCell id="arrow8" value="DLQ" style="endArrow=classic;html=1;rounded=0;strokeColor=#F44336;strokeWidth=2;fontColor=#F44336;fontSize=10;fontStyle=1;" edge="1" parent="1" source="sqs2" target="sqs-dlq">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="470" y="515" as="sourcePoint" />
+            <mxPoint x="520" y="465" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Legend -->
+        <mxCell id="legend" value="Legend:&#xa;🟠 AWS Lambda Functions&#xa;🟣 Amazon SNS Topics&#xa;🟢 Amazon SQS Queues&#xa;🟡 Amazon CloudWatch&#xa;🔴 AWS IAM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontSize=10;fontStyle=1;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="1150" y="120" width="200" height="120" as="geometry" />
+        </mxCell>
+        
+        <!-- Architecture Patterns -->
+        <mxCell id="patterns" value="Architecture Patterns:&#xa;✓ Event-Driven Architecture&#xa;✓ Circuit Breaker Pattern&#xa;✓ Dead Letter Queue&#xa;✓ FIFO Message Ordering&#xa;✓ Content-Based Deduplication&#xa;✓ Exponential Backoff&#xa;✓ Message Filtering" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1976D2;fontSize=10;fontStyle=1;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="1150" y="260" width="200" height="140" as="geometry" />
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
