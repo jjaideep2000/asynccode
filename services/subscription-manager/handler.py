@@ -114,7 +114,7 @@ class SubscriptionManager:
                     logger.info(f"✅ {service_name}: {action} successful")
                 else:
                     results['error_count'] += 1
-                    logger.error(f"❌ {service_name}: {action} failed")
+                    logger.error(f" {service_name}: {action} failed")
                     
             except Exception as e:
                 error_msg = f"Error processing {service_name}: {str(e)}"
@@ -241,7 +241,7 @@ class SubscriptionManager:
                         )
                         
                         result['mappings_disabled'] += 1
-                        logger.info(f"🚨 Disabled mapping {uuid} for {function_name}")
+                        logger.info(f" Disabled mapping {uuid} for {function_name}")
                         
                     except ClientError as e:
                         error_msg = f"Failed to disable mapping {uuid}: {str(e)}"
@@ -250,10 +250,10 @@ class SubscriptionManager:
                         
                 elif current_state == 'Disabled':
                     result['mappings_already_disabled'] += 1
-                    logger.info(f"ℹ️  Mapping {uuid} already disabled")
+                    logger.info(f" Mapping {uuid} already disabled")
                     
                 else:
-                    logger.warning(f"⚠️  Mapping {uuid} in unexpected state: {current_state}")
+                    logger.warning(f"  Mapping {uuid} in unexpected state: {current_state}")
             
             # Check if any mappings failed
             if result['errors']:
@@ -351,7 +351,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Handles SNS messages for subscription control
     """
     
-    logger.info(f"Received event: {json.dumps(event, default=str)}")
+    logger.info(f"Receivedddddddddddddd event: {json.dumps(event, default=str)}")
     
     try:
         subscription_manager = SubscriptionManager()
