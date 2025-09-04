@@ -30,22 +30,145 @@ class SubscriptionManager:
         
         # Configuration for managed Lambda functions
         self.managed_functions = self._load_managed_functions()
+        self._last_config_refresh = time.time()
+        self._config_refresh_interval = int(os.getenv('CONFIG_REFRESH_INTERVAL', '300'))  # 5 minutes default
         
     def _load_managed_functions(self) -> List[Dict[str, str]]:
-        """Load configuration of Lambda functions to manage"""
+        """Load configuration of Lambda functions to manage dynamically"""
         
-        # This could be loaded from environment variables, SSM Parameter Store, or DynamoDB
-        # For now, we'll use environment variables with fallback to defaults
+        # Try multiple dynamic sources in order of preference
         
+        # 1. Try SSM Parameter Store (most flexible)
+        functions = self._load_from_ssm()
+        if functions:
+            logger.info(f"Loaded {len(functions)} functions from SSM Parameter Store")
+            return functions
+        
+        # 2. Try DynamoDB table (good for complex configurations)
+        functions = self._load_from_dynamodb()
+        if functions:
+            logger.info(f"Loaded {len(functions)} functions from DynamoDB")
+            return functions
+        
+        # 3. Try auto-discovery by tags (fully dynamic)
+        functions = self._auto_discover_functions()
+        if functions:
+            logger.info(f"Auto-discovered {len(functions)} functions by tags")
+            return functions
+        
+        # 4. Try environment variable (simple override)
         functions_config = os.getenv('MANAGED_FUNCTIONS', '')
-        
         if functions_config:
             try:
-                return json.loads(functions_config)
+                functions = json.loads(functions_config)
+                logger.info(f"Loaded {len(functions)} functions from environment variable")
+                return functions
             except json.JSONDecodeError:
                 logger.error("Invalid MANAGED_FUNCTIONS configuration")
         
-        # Default configuration - these are the current Lambda functions
+        # 5. Fallback to defaults
+        logger.warning("Using default function configuration - consider setting up dynamic discovery")
+        return self._get_default_functions()
+    
+    def _load_from_ssm(self) -> List[Dict[str, str]]:
+        """Load function configuration from SSM Parameter Store"""
+        try:
+            ssm_client = boto3.client('ssm')
+            parameter_name = os.getenv('SSM_FUNCTIONS_PARAMETER', '/utility-system/subscription-manager/managed-functions')
+            
+            response = ssm_client.get_parameter(
+                Name=parameter_name,
+                WithDecryption=True
+            )
+            
+            return json.loads(response['Parameter']['Value'])
+            
+        except Exception as e:
+            logger.debug(f"Could not load from SSM: {e}")
+            return []
+    
+    def _load_from_dynamodb(self) -> List[Dict[str, str]]:
+        """Load function configuration from DynamoDB table"""
+        try:
+            dynamodb = boto3.resource('dynamodb')
+            table_name = os.getenv('DYNAMODB_FUNCTIONS_TABLE', 'utility-system-managed-functions')
+            table = dynamodb.Table(table_name)
+            
+            response = table.scan()
+            
+            # Convert DynamoDB items to function config format
+            functions = []
+            for item in response['Items']:
+                functions.append({
+                    'function_name': item['function_name'],
+                    'service_name': item['service_name'],
+                    'description': item.get('description', ''),
+                    'enabled': item.get('enabled', True)
+                })
+            
+            # Only return enabled functions
+            return [f for f in functions if f.get('enabled', True)]
+            
+        except Exception as e:
+            logger.debug(f"Could not load from DynamoDB: {e}")
+            return []
+    
+    def _auto_discover_functions(self) -> List[Dict[str, str]]:
+        """Auto-discover Lambda functions by tags"""
+        try:
+            # Look for Lambda functions with specific tags
+            tag_key = os.getenv('DISCOVERY_TAG_KEY', 'SubscriptionManaged')
+            tag_value = os.getenv('DISCOVERY_TAG_VALUE', 'true')
+            function_prefix = os.getenv('FUNCTION_PREFIX', 'utility-customer-system-dev-')
+            
+            # List all Lambda functions with pagination
+            functions = []
+            paginator = self.lambda_client.get_paginator('list_functions')
+            
+            for page in paginator.paginate():
+                for function in page['Functions']:
+                    function_name = function['FunctionName']
+                    
+                    # Skip if doesn't match prefix
+                    if not function_name.startswith(function_prefix):
+                        continue
+                    
+                    # Skip subscription-manager itself
+                    if 'subscription-manager' in function_name:
+                        continue
+                    
+                    try:
+                        # Check function tags
+                        tags_response = self.lambda_client.list_tags(
+                            Resource=function['FunctionArn']
+                        )
+                        
+                        tags = tags_response.get('Tags', {})
+                        
+                        # Check if function should be managed
+                        if tags.get(tag_key) == tag_value:
+                            # Extract service name from function name
+                            service_name = function_name.replace(function_prefix, '')
+                            
+                            functions.append({
+                                'function_name': function_name,
+                                'service_name': service_name,
+                                'description': tags.get('Description', f'Auto-discovered {service_name}'),
+                                'auto_discovered': True
+                            })
+                            
+                    except Exception as e:
+                        logger.debug(f"Could not check tags for {function_name}: {e}")
+                        continue
+            
+            return functions
+            
+        except Exception as e:
+            logger.debug(f"Auto-discovery failed: {e}")
+            return []
+    
+    def _get_default_functions(self) -> List[Dict[str, str]]:
+        """Get default hardcoded function configuration"""
         return [
             {
                 "function_name": "utility-customer-system-dev-bank-account-setup",
@@ -57,7 +180,6 @@ class SubscriptionManager:
                 "service_name": "payment-processing",
                 "description": "Payment processing"
             }
-            # Future Lambda functions can be added here
         ]
     
     def handle_subscription_control(self, control_message: Dict[str, Any]) -> Dict[str, Any]:
@@ -80,6 +202,9 @@ class SubscriptionManager:
         
         if action not in ['enable', 'disable']:
             raise ValueError(f"Invalid action: {action}. Must be 'enable' or 'disable'")
+        
+        # Auto-refresh configuration if needed
+        self.refresh_configuration()
         
         results = {
             'action': action,
@@ -343,6 +468,46 @@ class SubscriptionManager:
                 status['summary']['error_functions'] += 1
         
         return status
+    
+    def refresh_configuration(self, force: bool = False) -> Dict[str, Any]:
+        """Refresh the managed functions configuration"""
+        
+        current_time = time.time()
+        time_since_refresh = current_time - self._last_config_refresh
+        
+        if not force and time_since_refresh < self._config_refresh_interval:
+            return {
+                'refreshed': False,
+                'reason': f'Last refresh was {time_since_refresh:.1f} seconds ago (interval: {self._config_refresh_interval}s)',
+                'functions_count': len(self.managed_functions)
+            }
+        
+        old_functions = self.managed_functions.copy()
+        self.managed_functions = self._load_managed_functions()
+        self._last_config_refresh = current_time
+        
+        # Compare configurations
+        old_names = {f['function_name'] for f in old_functions}
+        new_names = {f['function_name'] for f in self.managed_functions}
+        
+        added = new_names - old_names
+        removed = old_names - new_names
+        
+        logger.info(f"Configuration refreshed: {len(self.managed_functions)} functions loaded")
+        if added:
+            logger.info(f"Added functions: {list(added)}")
+        if removed:
+            logger.info(f"Removed functions: {list(removed)}")
+        
+        return {
+            'refreshed': True,
+            'timestamp': datetime.utcnow().isoformat(),
+            'old_count': len(old_functions),
+            'new_count': len(self.managed_functions),
+            'added_functions': list(added),
+            'removed_functions': list(removed),
+            'current_functions': [f['function_name'] for f in self.managed_functions]
+        }
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -389,6 +554,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'body': json.dumps({
                     'message': 'Subscription status retrieved',
                     'status': status
+                })
+            }
+        
+        # Handle configuration refresh
+        elif event.get('action') == 'refresh':
+            force_refresh = event.get('force', False)
+            refresh_result = subscription_manager.refresh_configuration(force=force_refresh)
+            
+            return {
+                'statusCode': 200,
+                'body': json.dumps({
+                    'message': 'Configuration refresh processed',
+                    'result': refresh_result
                 })
             }
         
