@@ -60,7 +60,7 @@ def simulate_payment_processing(payment_data: Dict[str, Any]) -> Dict[str, Any]:
     
     elif 'ERROR500' in customer_id.upper():
         # Simulate 500 error (payment gateway unavailable)
-        raise Exception("Payment gateway temporarily unavailable")
+        raise Exception("Payment gateway temporarily unavailable on Sep 4th 7.16AM")
     
     elif amount > 10000:
         # Simulate large payment requiring additional verification
