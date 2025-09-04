@@ -18,10 +18,53 @@ env:
   ECR_REGISTRY: 088153174619.dkr.ecr.us-east-2.amazonaws.com
 
 jobs:
+  # Change Detection Stage
+  detect-changes:
+    name: Detect Changed Services
+    runs-on: ubuntu-latest
+    outputs:
+      bank-account-setup: ${{ steps.changes.outputs.bank-account-setup }}
+      payment-processing: ${{ steps.changes.outputs.payment-processing }}
+      subscription-manager: ${{ steps.changes.outputs.subscription-manager }}
+      shared: ${{ steps.changes.outputs.shared }}
+      any-service-changed: ${{ steps.changes.outputs.bank-account-setup == 'true' || steps.changes.outputs.payment-processing == 'true' || steps.changes.outputs.subscription-manager == 'true' || steps.changes.outputs.shared == 'true' }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Detect Changes
+        uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            bank-account-setup:
+              - 'services/bank-account-setup/**'
+              - 'shared/**'
+            payment-processing:
+              - 'services/payment-processing/**'
+              - 'shared/**'
+            subscription-manager:
+              - 'services/subscription-manager/**'
+              - 'shared/**'
+            shared:
+              - 'shared/**'
+      
+      - name: Show Changes
+        run: |
+          echo "Changed services:"
+          echo "Bank Account Setup: ${{ steps.changes.outputs.bank-account-setup }}"
+          echo "Payment Processing: ${{ steps.changes.outputs.payment-processing }}"
+          echo "Subscription Manager: ${{ steps.changes.outputs.subscription-manager }}"
+          echo "Shared Components: ${{ steps.changes.outputs.shared }}"
+
   # Test Stage
   test:
     name: Run Tests
+    needs: detect-changes
     runs-on: ubuntu-latest
+    if: needs.detect-changes.outputs.any-service-changed == 'true'
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -58,16 +101,12 @@ jobs:
           chmod +x scripts/validate-setup.sh
           ./scripts/validate-setup.sh
 
-  # Build Stage
-  build:
-    name: Build Container Images
-    needs: test
+  # Build Stage - Bank Account Setup
+  build-bank-account-setup:
+    name: Build Bank Account Setup
+    needs: [detect-changes, test]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
-    
-    strategy:
-      matrix:
-        service: [bank-account-setup, payment-processing, subscription-manager]
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.detect-changes.outputs.bank-account-setup == 'true'
     
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
@@ -91,7 +130,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.ECR_REGISTRY }}/utility-customer-${{ matrix.service }}
+          images: ${{ env.ECR_REGISTRY }}/utility-customer-bank-account-setup
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -104,7 +143,7 @@ jobs:
       - name: Build and Push Container Image
         uses: docker/build-push-action@v5
         with:
-          context: ./services/${{ matrix.service }}
+          context: ./services/bank-account-setup
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -114,20 +153,120 @@ jobs:
           provenance: false
           sbom: false
 
-  # Deploy Stage
-  deploy:
-    name: Deploy to AWS Lambda
-    needs: [test, build]
+  # Build Stage - Payment Processing
+  build-payment-processing:
+    name: Build Payment Processing
+    needs: [detect-changes, test]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.detect-changes.outputs.payment-processing == 'true'
     
-    strategy:
-      matrix:
-        service: [bank-account-setup, payment-processing, subscription-manager]
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      
+      - name: Extract Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.ECR_REGISTRY }}/utility-customer-payment-processing
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build and Push Container Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/payment-processing
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+
+  # Build Stage - Subscription Manager
+  build-subscription-manager:
+    name: Build Subscription Manager
+    needs: [detect-changes, test]
+    runs-on: ubuntu-latest
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.detect-changes.outputs.subscription-manager == 'true'
+    
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      
+      - name: Extract Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.ECR_REGISTRY }}/utility-customer-subscription-manager
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build and Push Container Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/subscription-manager
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+
+  # Deploy Stage - Bank Account Setup
+  deploy-bank-account-setup:
+    name: Deploy Bank Account Setup
+    needs: [detect-changes, build-bank-account-setup]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.bank-account-setup == 'true'
         
     environment:
       name: production
-      url: https://console.aws.amazon.com/lambda/home?region=us-east-2#/functions/utility-customer-system-dev-${{ matrix.service }}
+      url: https://console.aws.amazon.com/lambda/home?region=us-east-2#/functions/utility-customer-system-dev-bank-account-setup
     
     steps:
       - name: Checkout Code
@@ -142,9 +281,9 @@ jobs:
       
       - name: Update Lambda Function
         env:
-          ECR_REPOSITORY: utility-customer-${{ matrix.service }}
+          ECR_REPOSITORY: utility-customer-bank-account-setup
           IMAGE_TAG: latest
-          FUNCTION_NAME: utility-customer-system-dev-${{ matrix.service }}
+          FUNCTION_NAME: utility-customer-system-dev-bank-account-setup
         run: |
           echo "Updating Lambda function: $FUNCTION_NAME"
           echo "Using image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
@@ -164,7 +303,111 @@ jobs:
       
       - name: Post-Deploy Smoke Test
         env:
-          FUNCTION_NAME: utility-customer-system-dev-${{ matrix.service }}
+          FUNCTION_NAME: utility-customer-system-dev-bank-account-setup
+        run: |
+          echo "Smoke test for $FUNCTION_NAME"
+          echo "Function deployed successfully - smoke tests will be enhanced in next iteration"
+          echo "Function is ready for testing with demo scripts"
+
+  # Deploy Stage - Payment Processing
+  deploy-payment-processing:
+    name: Deploy Payment Processing
+    needs: [detect-changes, build-payment-processing]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.payment-processing == 'true'
+        
+    environment:
+      name: production
+      url: https://console.aws.amazon.com/lambda/home?region=us-east-2#/functions/utility-customer-system-dev-payment-processing
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Update Lambda Function
+        env:
+          ECR_REPOSITORY: utility-customer-payment-processing
+          IMAGE_TAG: latest
+          FUNCTION_NAME: utility-customer-system-dev-payment-processing
+        run: |
+          echo "Updating Lambda function: $FUNCTION_NAME"
+          echo "Using image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          
+          # Update function code
+          aws lambda update-function-code \
+            --function-name $FUNCTION_NAME \
+            --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            --output table
+          
+          # Wait for update to complete
+          echo "Waiting for function update to complete..."
+          aws lambda wait function-updated \
+            --function-name $FUNCTION_NAME
+          
+          echo "Function $FUNCTION_NAME updated successfully!"
+      
+      - name: Post-Deploy Smoke Test
+        env:
+          FUNCTION_NAME: utility-customer-system-dev-payment-processing
+        run: |
+          echo "Smoke test for $FUNCTION_NAME"
+          echo "Function deployed successfully - smoke tests will be enhanced in next iteration"
+          echo "Function is ready for testing with demo scripts"
+
+  # Deploy Stage - Subscription Manager
+  deploy-subscription-manager:
+    name: Deploy Subscription Manager
+    needs: [detect-changes, build-subscription-manager]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.subscription-manager == 'true'
+        
+    environment:
+      name: production
+      url: https://console.aws.amazon.com/lambda/home?region=us-east-2#/functions/utility-customer-system-dev-subscription-manager
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Update Lambda Function
+        env:
+          ECR_REPOSITORY: utility-customer-subscription-manager
+          IMAGE_TAG: latest
+          FUNCTION_NAME: utility-customer-system-dev-subscription-manager
+        run: |
+          echo "Updating Lambda function: $FUNCTION_NAME"
+          echo "Using image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          
+          # Update function code
+          aws lambda update-function-code \
+            --function-name $FUNCTION_NAME \
+            --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            --output table
+          
+          # Wait for update to complete
+          echo "Waiting for function update to complete..."
+          aws lambda wait function-updated \
+            --function-name $FUNCTION_NAME
+          
+          echo "Function $FUNCTION_NAME updated successfully!"
+      
+      - name: Post-Deploy Smoke Test
+        env:
+          FUNCTION_NAME: utility-customer-system-dev-subscription-manager
         run: |
           echo "Smoke test for $FUNCTION_NAME"
           echo "Function deployed successfully - smoke tests will be enhanced in next iteration"
@@ -173,24 +416,65 @@ jobs:
   # Notify Stage
   notify:
     name: Deployment Notification
-    needs: [deploy]
+    needs: [detect-changes, deploy-bank-account-setup, deploy-payment-processing, deploy-subscription-manager]
     runs-on: ubuntu-latest
-    if: always() && github.ref == 'refs/heads/main'
+    if: always() && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.any-service-changed == 'true'
     
     steps:
       - name: Deployment Summary
         run: |
-          echo "Deployment Summary"
-          echo "===================="
+          echo "Incremental Deployment Summary"
+          echo "=============================="
           echo "Repository: ${{ github.repository }}"
           echo "Branch: ${{ github.ref_name }}"
           echo "Commit: ${{ github.sha }}"
-          echo "Services Deployed: bank-account-setup, payment-processing, subscription-manager"
           echo "Environment: Production"
           echo "Region: ${{ env.AWS_REGION }}"
+          echo ""
+          echo "Services Processed:"
           
-          if [ "${{ needs.deploy.result }}" == "success" ]; then
-            echo "All services deployed successfully!"
+          # Check which services were deployed
+          deployed_services=""
+          
+          if [ "${{ needs.detect-changes.outputs.bank-account-setup }}" == "true" ]; then
+            echo "- Bank Account Setup: CHANGED"
+            if [ "${{ needs.deploy-bank-account-setup.result }}" == "success" ]; then
+              echo "  Status: DEPLOYED SUCCESSFULLY"
+              deployed_services="$deployed_services bank-account-setup"
+            else
+              echo "  Status: DEPLOYMENT FAILED"
+            fi
           else
-            echo "Deployment failed. Check logs for details."
+            echo "- Bank Account Setup: NO CHANGES"
+          fi
+          
+          if [ "${{ needs.detect-changes.outputs.payment-processing }}" == "true" ]; then
+            echo "- Payment Processing: CHANGED"
+            if [ "${{ needs.deploy-payment-processing.result }}" == "success" ]; then
+              echo "  Status: DEPLOYED SUCCESSFULLY"
+              deployed_services="$deployed_services payment-processing"
+            else
+              echo "  Status: DEPLOYMENT FAILED"
+            fi
+          else
+            echo "- Payment Processing: NO CHANGES"
+          fi
+          
+          if [ "${{ needs.detect-changes.outputs.subscription-manager }}" == "true" ]; then
+            echo "- Subscription Manager: CHANGED"
+            if [ "${{ needs.deploy-subscription-manager.result }}" == "success" ]; then
+              echo "  Status: DEPLOYED SUCCESSFULLY"
+              deployed_services="$deployed_services subscription-manager"
+            else
+              echo "  Status: DEPLOYMENT FAILED"
+            fi
+          else
+            echo "- Subscription Manager: NO CHANGES"
+          fi
+          
+          echo ""
+          if [ -n "$deployed_services" ]; then
+            echo "Successfully deployed services:$deployed_services"
+          else
+            echo "No services were deployed (all deployments failed or no changes detected)"
           fi
