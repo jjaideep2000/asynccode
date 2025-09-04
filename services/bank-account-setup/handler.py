@@ -84,7 +84,7 @@ def process_bank_account_message(message_body: Dict[str, Any]) -> Dict[str, Any]
     start_time = time.time()
         
     try:
-        logger.info(f"Processing bank account setup for customerrrrrrrrrrr: {customer_id}")
+        logger.info(f"Processing bank account setup for customer on September 4th at 6.40 AM: {customer_id}")
         
         # Validate required fields
         required_fields = ['customer_id', 'routing_number', 'account_number']
