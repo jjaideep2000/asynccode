@@ -56,7 +56,7 @@ def simulate_bank_account_validation(account_data: Dict[str, Any]) -> Dict[str, 
     
     elif 'ERROR500' in customer_id.upper():
         # Simulate 500 error (bank service unavailable)
-        raise Exception("Bank validation service temporarily unavailable")
+        raise Exception("Bank validation service temporarily unavailable on September 4th 6.53 AM")
     
     elif 'SLOW' in customer_id.upper():
         # Simulate slow processing
