@@ -34,29 +34,35 @@ class SubscriptionManager:
         self._config_refresh_interval = int(os.getenv('CONFIG_REFRESH_INTERVAL', '300'))  # 5 minutes default
         
     def _load_managed_functions(self) -> List[Dict[str, str]]:
-        """Load configuration of Lambda functions to manage dynamically"""
+        """Load configuration of Lambda functions to manage dynamically - NO HARDCODING"""
         
         # Try multiple dynamic sources in order of preference
         
-        # 1. Try SSM Parameter Store (most flexible)
+        # 1. Try auto-discovery by AWS Lambda API (fully dynamic - primary method)
+        functions = self._auto_discover_all_functions()
+        if functions:
+            logger.info(f"Auto-discovered {len(functions)} functions by AWS API scan")
+            return functions
+        
+        # 2. Try SSM Parameter Store (manual override)
         functions = self._load_from_ssm()
         if functions:
             logger.info(f"Loaded {len(functions)} functions from SSM Parameter Store")
             return functions
         
-        # 2. Try DynamoDB table (good for complex configurations)
+        # 3. Try DynamoDB table (complex configurations)
         functions = self._load_from_dynamodb()
         if functions:
             logger.info(f"Loaded {len(functions)} functions from DynamoDB")
             return functions
         
-        # 3. Try auto-discovery by tags (fully dynamic)
+        # 4. Try auto-discovery by tags (tagged functions only)
         functions = self._auto_discover_functions()
         if functions:
             logger.info(f"Auto-discovered {len(functions)} functions by tags")
             return functions
         
-        # 4. Try environment variable (simple override)
+        # 5. Try environment variable (simple override)
         functions_config = os.getenv('MANAGED_FUNCTIONS', '')
         if functions_config:
             try:
@@ -66,9 +72,10 @@ class SubscriptionManager:
             except json.JSONDecodeError:
                 logger.error("Invalid MANAGED_FUNCTIONS configuration")
         
-        # 5. Fallback to defaults
-        logger.warning("Using default function configuration - consider setting up dynamic discovery")
-        return self._get_default_functions()
+        # 6. NO HARDCODED FALLBACK - Return empty list if nothing found
+        logger.error("No Lambda functions found through any discovery method!")
+        logger.error("Available methods: AWS API scan, SSM, DynamoDB, tags, environment")
+        return []
     
     def _load_from_ssm(self) -> List[Dict[str, str]]:
         """Load function configuration from SSM Parameter Store"""
@@ -113,6 +120,73 @@ class SubscriptionManager:
             logger.debug(f"Could not load from DynamoDB: {e}")
             return []
     
+    def _auto_discover_all_functions(self) -> List[Dict[str, str]]:
+        """Auto-discover ALL Lambda functions by scanning AWS and matching naming pattern"""
+        try:
+            # Configuration
+            function_prefix = os.getenv('FUNCTION_PREFIX', 'utility-customer-system-dev-')
+            exclude_functions = os.getenv('EXCLUDE_FUNCTIONS', 'subscription-manager').split(',')
+            
+            logger.info(f"Scanning for Lambda functions with prefix: {function_prefix}")
+            
+            # List all Lambda functions with pagination
+            functions = []
+            paginator = self.lambda_client.get_paginator('list_functions')
+            
+            for page in paginator.paginate():
+                for function in page['Functions']:
+                    function_name = function['FunctionName']
+                    
+                    # Skip if doesn't match our naming pattern
+                    if not function_name.startswith(function_prefix):
+                        logger.debug(f"Skipping {function_name} - doesn't match prefix {function_prefix}")
+                        continue
+                    
+                    # Extract service name from function name
+                    service_name = function_name.replace(function_prefix, '')
+                    
+                    # Skip excluded functions (like subscription-manager itself)
+                    if any(exclude in service_name for exclude in exclude_functions):
+                        logger.debug(f"Skipping {function_name} - in exclude list")
+                        continue
+                    
+                    # Check if function has SQS event source mappings (processing functions)
+                    try:
+                        mappings_response = self.lambda_client.list_event_source_mappings(
+                            FunctionName=function_name
+                        )
+                        
+                        sqs_mappings = [
+                            mapping for mapping in mappings_response['EventSourceMappings']
+                            if 'sqs' in mapping['EventSourceArn'].lower()
+                        ]
+                        
+                        # Only include functions that have SQS mappings (processing functions)
+                        if sqs_mappings:
+                            functions.append({
+                                'function_name': function_name,
+                                'service_name': service_name,
+                                'description': f'Auto-discovered processing service: {service_name}',
+                                'sqs_mappings_count': len(sqs_mappings),
+                                'auto_discovered': True,
+                                'discovery_method': 'aws_api_scan'
+                            })
+                            
+                            logger.info(f"✅ Discovered processing function: {service_name} ({len(sqs_mappings)} SQS mappings)")
+                        else:
+                            logger.debug(f"Skipping {function_name} - no SQS event source mappings")
+                            
+                    except Exception as e:
+                        logger.debug(f"Could not check event source mappings for {function_name}: {e}")
+                        continue
+            
+            logger.info(f"Auto-discovery complete: found {len(functions)} processing functions")
+            return functions
+            
+        except Exception as e:
+            logger.error(f"Auto-discovery failed: {e}")
+            return []
+
     def _auto_discover_functions(self) -> List[Dict[str, str]]:
         """Auto-discover Lambda functions by tags"""
         try:
@@ -167,20 +241,7 @@ class SubscriptionManager:
             logger.debug(f"Auto-discovery failed: {e}")
             return []
     
-    def _get_default_functions(self) -> List[Dict[str, str]]:
-        """Get default hardcoded function configuration"""
-        return [
-            {
-                "function_name": "utility-customer-system-dev-bank-account-setup",
-                "service_name": "bank-account-setup",
-                "description": "Bank account setup processing"
-            },
-            {
-                "function_name": "utility-customer-system-dev-payment-processing", 
-                "service_name": "payment-processing",
-                "description": "Payment processing"
-            }
-        ]
+    # NO HARDCODED FUNCTIONS - All discovery is dynamic!
     
     def handle_subscription_control(self, control_message: Dict[str, Any]) -> Dict[str, Any]:
         """
