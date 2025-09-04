@@ -1,4 +1,4 @@
-name: 🚀 Deploy Containerized Lambda Services
+name: Deploy Containerized Lambda Services
 
 on:
   push:
@@ -18,20 +18,20 @@ env:
   ECR_REGISTRY: 088153174619.dkr.ecr.us-east-2.amazonaws.com
 
 jobs:
-  # 🧪 Test Stage
+  # Test Stage
   test:
-    name: 🧪 Run Tests
+    name: Run Tests
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 Checkout Code
+      - name: Checkout Code
         uses: actions/checkout@v4
       
-      - name: 🐍 Set up Python
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
       
-      - name: 📦 Install Dependencies
+      - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pytest boto3 moto requests
@@ -43,24 +43,24 @@ jobs:
             fi
           done
       
-      - name: 🧪 Run Unit Tests
+      - name: Run Unit Tests
         run: |
           if [ -d "tests" ]; then
             # Skip broken test files for now, focus on deployment
             echo "Skipping unit tests - will be fixed in next iteration"
-            echo "✅ Test stage passed (tests will be fixed separately)"
+            echo "Test stage passed (tests will be fixed separately)"
           else
             echo "No tests directory found, skipping unit tests"
           fi
       
-      - name: 🔍 Validate Service Structure
+      - name: Validate Service Structure
         run: |
           chmod +x scripts/validate-setup.sh
           ./scripts/validate-setup.sh
 
-  # 🏗️ Build Stage
+  # Build Stage
   build:
-    name: 🏗️ Build Container Images
+    name: Build Container Images
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
@@ -73,21 +73,21 @@ jobs:
       image-tag: ${{ steps.meta.outputs.tags }}
       
     steps:
-      - name: 📥 Checkout Code
+      - name: Checkout Code
         uses: actions/checkout@v4
       
-      - name: 🔧 Configure AWS Credentials
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
       
-      - name: 🔐 Login to Amazon ECR
+      - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
       
-      - name: 📋 Extract Metadata
+      - name: Extract Metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -98,10 +98,10 @@ jobs:
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
       
-      - name: 🐳 Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       
-      - name: 🏗️ Build and Push Container Image
+      - name: Build and Push Container Image
         uses: docker/build-push-action@v5
         with:
           context: ./services/${{ matrix.service }}
@@ -114,9 +114,9 @@ jobs:
           provenance: false
           sbom: false
 
-  # 🚀 Deploy Stage
+  # Deploy Stage
   deploy:
-    name: 🚀 Deploy to AWS Lambda
+    name: Deploy to AWS Lambda
     needs: [test, build]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
@@ -130,24 +130,24 @@ jobs:
       url: https://console.aws.amazon.com/lambda/home?region=us-east-2#/functions/utility-customer-system-dev-${{ matrix.service }}
     
     steps:
-      - name: 📥 Checkout Code
+      - name: Checkout Code
         uses: actions/checkout@v4
       
-      - name: 🔧 Configure AWS Credentials
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
       
-      - name: 🚀 Update Lambda Function
+      - name: Update Lambda Function
         env:
           ECR_REPOSITORY: utility-customer-${{ matrix.service }}
           IMAGE_TAG: latest
           FUNCTION_NAME: utility-customer-system-dev-${{ matrix.service }}
         run: |
-          echo "🔄 Updating Lambda function: $FUNCTION_NAME"
-          echo "📦 Using image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "Updating Lambda function: $FUNCTION_NAME"
+          echo "Using image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           
           # Update function code
           aws lambda update-function-code \
@@ -156,41 +156,41 @@ jobs:
             --output table
           
           # Wait for update to complete
-          echo "⏳ Waiting for function update to complete..."
+          echo "Waiting for function update to complete..."
           aws lambda wait function-updated \
             --function-name $FUNCTION_NAME
           
-          echo "✅ Function $FUNCTION_NAME updated successfully!"
+          echo "Function $FUNCTION_NAME updated successfully!"
       
-      - name: 🧪 Post-Deploy Smoke Test
+      - name: Post-Deploy Smoke Test
         env:
           FUNCTION_NAME: utility-customer-system-dev-${{ matrix.service }}
         run: |
-          echo "🧪 Smoke test for $FUNCTION_NAME"
-          echo "✅ Function deployed successfully - smoke tests will be enhanced in next iteration"
-          echo "📋 Function is ready for testing with demo scripts"
+          echo "Smoke test for $FUNCTION_NAME"
+          echo "Function deployed successfully - smoke tests will be enhanced in next iteration"
+          echo "Function is ready for testing with demo scripts"
 
-  # 📊 Notify Stage
+  # Notify Stage
   notify:
-    name: 📊 Deployment Notification
+    name: Deployment Notification
     needs: [deploy]
     runs-on: ubuntu-latest
     if: always() && github.ref == 'refs/heads/main'
     
     steps:
-      - name: 📊 Deployment Summary
+      - name: Deployment Summary
         run: |
-          echo "🎉 Deployment Summary"
+          echo "Deployment Summary"
           echo "===================="
-          echo "✅ Repository: ${{ github.repository }}"
-          echo "✅ Branch: ${{ github.ref_name }}"
-          echo "✅ Commit: ${{ github.sha }}"
-          echo "✅ Services Deployed: bank-account-setup, payment-processing, subscription-manager"
-          echo "✅ Environment: Production"
-          echo "✅ Region: ${{ env.AWS_REGION }}"
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Services Deployed: bank-account-setup, payment-processing, subscription-manager"
+          echo "Environment: Production"
+          echo "Region: ${{ env.AWS_REGION }}"
           
           if [ "${{ needs.deploy.result }}" == "success" ]; then
-            echo "🎉 All services deployed successfully!"
+            echo "All services deployed successfully!"
           else
-            echo "❌ Deployment failed. Check logs for details."
+            echo "Deployment failed. Check logs for details."
           fi
